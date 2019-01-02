@@ -33,7 +33,7 @@ struct color{
 
 
 SDL_Surface*  canvas;
-SDL_Renderer* render;
+SDL_Renderer* render;//software renderer to canvas, not to window
 SDL_Window*   window;
 color         pencolor   = { 0xFF, 0xFF, 0xFF };
 double        zoom       = 1.0;
@@ -74,46 +74,50 @@ int main(int argc, char** argv)
 
 
 
-
-
-
-
 bool loop()
 { waitforevent();
 
-  ifev(SDL_SCANCODE_ESCAPE)
-    return false;
-  ifev(SDL_QUIT)
-    return false;
+  ifev(SDL_SCANCODE_ESCAPE) return false;
+  ifev(SDL_QUIT)            return false;
 
-  ifev(SDL_MOUSEBUTTONDOWN)//draw a point at the mouse coordinates
+  ifev(SDL_SCANCODE_R)
+    { pencolor.r = numericinput( 3 );
+    }
+    
+  ifev(SDL_SCANCODE_G)
+    { pencolor.g = numericinput( 3 );
+    }
+    
+  ifev(SDL_SCANCODE_B)
+    { pencolor.b = numericinput( 3 );
+    }
+    
+  
+  ifev(SDL_MOUSEBUTTONDOWN)
    { if(ev.button.button ==  SDL_BUTTON_LEFT)
        penmode();
      if(ev.button.button == SDL_BUTTON_RIGHT )
        pickcolor();
    }
 
-  
-  //Needs work!
   ifev(SDL_MOUSEWHEEL)
-    {SDL_Surface* wsurface = SDL_GetWindowSurface(window);
-      if(ev.wheel.y < 0 )
+    { if(ev.wheel.y < 0 )
         zoom /= zoomfactor;//zoom in
       else
 	zoom *= zoomfactor;//zoom out
     }
   
   ifev(SDL_SCANCODE_RIGHT)
-    view.x += 50;
+    view.x += 50 / zoom;
 
   ifev(SDL_SCANCODE_DOWN)
-    view.y += 50;
+    view.y += 50 / zoom;
 
   ifev(SDL_SCANCODE_UP)
-    view.y -= 50;
+    view.y -= 50 / zoom;
 
   ifev(SDL_SCANCODE_LEFT)
-    view.x -= 50;
+    view.x -= 50 / zoom;
   
   redraw();
   return true;
@@ -129,42 +133,60 @@ void penmode()
 	    p0.y,
 	    SDL_MapRGB( canvas->format, pencolor.r, pencolor.g, pencolor.b)
 	   );
-
   //Until user releases mouse, draw straight line between last mouse position and current mouse position
-  do{
-    waitforevent();
+  while(!event(SDL_MOUSEBUTTONUP)){
     v2 p1 = mouse()/zoom;
     SDL_SetRenderDrawColor(render, pencolor.r,pencolor.g,pencolor.b,0xFF);
     SDL_RenderDrawLine(render,p0.x,p0.y,p1.x,p1.y);
     p0 = p1;
     redraw();
-  }while(!event(SDL_MOUSEBUTTONUP));
+  }
+}
+
+
+
+void scroll()
+{ SDL_Event ev;
+  do{
+    SDL_WaitEvent(&ev);
+    if(ev.type == SDL_MOUSEMOTION){
+      view.x += ev.motion.xrel / (zoom / 2);
+      view.y += ev.motion.yrel / (zoom / 2);
+      redraw();
+    }
+  }while(ev.type != SDL_MOUSEBUTTONUP);
 }
 
 
 
 void pickcolor()
-{ v2 p = mouse()/zoom;
-  Uint32 newcolor = getpixel( canvas, p.x, p.y );
-  SDL_GetRGB( newcolor,
-	      canvas->format,
-	      &pencolor.r,
-	      &pencolor.g,
-	      &pencolor.b
-	      );
+{ waitforevent();
+  //if hold, use color palette
+  ifev(SDL_MOUSEMOTION)
+    { scroll();
+    } else
+	{ v2 p = mouse()/zoom;
+          Uint32 newcolor = getpixel( canvas, p.x, p.y );
+          SDL_GetRGB( newcolor,
+	              canvas->format,
+ 	              &pencolor.r,
+	              &pencolor.g,
+	              &pencolor.b
+	              );
+	}
 }
 
 
-//Zooming got much easier when I relegated it all to the source rectangle
+
 void redraw()
-{ v2 wd = windim();
-  SDL_Surface* wsurface = SDL_GetWindowSurface(window);
-  
-  SDL_Rect src = {view.x - wd.x / (zoom*2),
-		  view.y - wd.y / (zoom*2),
+{ SDL_Surface* wsurface = SDL_GetWindowSurface(window);
+
+  //Zooming got much easier when I relegated it all to the source rectangle  
+  SDL_Rect src = {view.x - wsurface->w / (zoom*2),
+		  view.y - wsurface->h / (zoom*2),
 		  wsurface->w / zoom,
 		  wsurface->h / zoom};
-  
+  //Fill w/ Grey
   SDL_FillRect( wsurface,
 		NULL,
 		SDL_MapRGB( wsurface->format,
@@ -174,10 +196,10 @@ void redraw()
                 );
   
   SDL_BlitScaled( canvas,
-		   &src,
+		  &src,
 		  wsurface,
-		   NULL
-		   );
+		  NULL
+		  );
   
   SDL_UpdateWindowSurface( window );
 }
@@ -185,7 +207,7 @@ void redraw()
 
 
 v2 mouse()
-{ return abs_mouse() - windim()/2.0 - v2(0.5,0.5) + view*zoom;
+{ return abs_mouse() - windim()/2.0 + view*zoom;//(1.5,1.5) corrects for cursor 
 }
 
 
@@ -204,7 +226,7 @@ void initSDL()
 			   SDL_WINDOWPOS_UNDEFINED,
 			   640,
 			   480,
-			   SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE);
+			   SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE /* | SDL_WINDOW_BORDERLESS */ );
 
   canvas = SDL_CreateRGBSurface(0, 640, 480, 32, 0,0,0,0);
 
@@ -214,8 +236,9 @@ void initSDL()
 
 
 void closeSDL()
-{ SDL_DestroyWindow(window);
-  SDL_FreeSurface(canvas);
+{ SDL_DestroyWindow(   window );
+  SDL_DestroyRenderer( render );
+  SDL_FreeSurface(     canvas );
 }
 
 

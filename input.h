@@ -42,7 +42,7 @@ template<typename Q> bool event(Q query)
 
 
 v2 abs_mouse();
-
+int numericinput(unsigned int);
 
 
 
