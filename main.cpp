@@ -1,10 +1,9 @@
 /* npaint 
-| The most elegant, free, open-source pixel editor on the internet! 
-| N.P.Thompson <noahpthomp@gmail.com>
+An elegant, free, open-source pixel editor 
+N.P.Thompson <noahpthomp@gmail.com>
 
-put/get pixel 'should' call lock/unlock surface.
-But so far npaint works without calling those.
-Maybe it will crash when more than one surface is involved?
+according to the documentation, I should call lock/unlock surface when using get/set pixel
+But so far npaint works without calling those -- maybe it will crash when more than one surface is involved?
 */
 #include"input.h"
 #include"pixel_op.h"
@@ -31,7 +30,7 @@ struct color{
 
 
 
-
+const char*   sourcefile = NULL;
 SDL_Surface*  canvas;
 SDL_Renderer* render;//software renderer to canvas, not to window
 SDL_Window*   window;
@@ -48,6 +47,7 @@ v2            view(320,240);
 
 
 void initSDL();
+void loadCanvas(const char*);
 void closeSDL();
 bool loop();
 void redraw();
@@ -63,7 +63,12 @@ v2   windim();//window dimensions;
 
 
 int main(int argc, char** argv)
-{ initSDL();
+{
+  initSDL();
+  if(argc > 1)
+    { sourcefile = argv[1];
+    }
+  loadCanvas( sourcefile );
   while(loop()){}
   closeSDL();
 }
@@ -227,9 +232,16 @@ void initSDL()
 			   640,
 			   480,
 			   SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE /* | SDL_WINDOW_BORDERLESS */ );
+}
 
-  canvas = SDL_CreateRGBSurface(0, 640, 480, 32, 0,0,0,0);
 
+
+void loadCanvas( const char* file )
+{ if(file == NULL)
+    canvas = SDL_CreateRGBSurface(0, 640, 480, 32, 0,0,0,0);
+  else
+    canvas = SDL_LoadBMP( file );
+  
   render = SDL_CreateSoftwareRenderer( canvas );
 }
 
@@ -238,6 +250,11 @@ void initSDL()
 void closeSDL()
 { SDL_DestroyWindow(   window );
   SDL_DestroyRenderer( render );
+
+  if(sourcefile == NULL)//case new file
+    sourcefile = "newpaint.bmp";
+
+  SDL_SaveBMP( canvas, sourcefile );
   SDL_FreeSurface(     canvas );
 }
 
